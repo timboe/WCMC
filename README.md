@@ -1,2 +1,13 @@
 # WCMC
 World Cup Monte Carlo
+
+A shockingly simple MC designed to predict the outcome of the World Cup football tournament.
+
+Requires [ROOT library](https://root.cern.ch/) to be installed and setup.
+
+To run:
+```
+time root -b -q wcMC_2018.cxx++
+```
+
+![WCMC](https://github.com/timboe/WCMC/blob/master/img/WCMC_GroupResults_1.png?raw=true)
