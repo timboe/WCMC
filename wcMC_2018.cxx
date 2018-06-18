@@ -385,8 +385,10 @@ void WCMC::execute() {
         np->init(teams.at(i) + " Goals", teams.at(j) + " Goals", "");
         TH2* h = m_h_matchResult[teams.at(i) + "_" + teams.at(j)];
         np->add2D(h);
-        np->addLable(.5, .75, teams.at(i) + ": " + std::to_string( (int) (h->ProjectionX()->GetMaximumBin() - 1.) ) );
-        np->addLable(.5, .80, teams.at(j) + ": " + std::to_string( (int) (h->ProjectionY()->GetMaximumBin() - 1.) ) );
+        int maxX = -1, maxY = -1, maxZ = -1;
+        h->GetBinXYZ(h->GetMaximumBin(), maxX, maxY, maxZ);
+        np->addLable(.5, .75, teams.at(i) + ": " + std::to_string( maxX - 1 ));
+        np->addLable(.5, .80, teams.at(j) + ": " + std::to_string( maxY - 1 ));
         np->addLable(.5, .85, "Group: " + group);
       }
     }
@@ -394,6 +396,7 @@ void WCMC::execute() {
   bookOutput::setBreak(groups.size());
   bookOutput::get().doMultipadOutput("WCMC_GroupStage", 3, 2);
   bookOutput::clear();
+  
   nicePlot* np_base_1d = new nicePlot();
   np_base_1d->setLineWidth(3);
   np_base_1d->setLegend(.7, .7);

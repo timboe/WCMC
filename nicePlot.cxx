@@ -1331,7 +1331,7 @@ void bookOutput::doMultipadOutput(TString _name, int _x, int _y) {
     gPad->SetMargin(0,0,0,0);
     _splitCanvas->SetCanvasSize(_x*800 * (rp.at(0)->stretch ? 2.5 : 1), _y*600);
     _splitCanvas->Divide(_x, _y, 0, 0);
-    int _count = 1;
+    static int _count = 1;
     for (unsigned _p = 0; _p < (unsigned)(_x*_y); ++_p) {
       TPad* _pad = (TPad*) _splitCanvas->cd(_p+1);
       _pad->SetFillColor(1); // WC MC
