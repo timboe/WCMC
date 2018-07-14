@@ -8,9 +8,11 @@
 #include <TH2.h>
 #include "nicePlot.cxx"
 
+enum Mode {kFULL_TOURNAMENT, kAFTER_GROUP, kAFTER_16, kAFTER_QUARTER, kAFTER_SEMI};
+
 class WCMC {  
   public:
-    WCMC();
+    WCMC(const Mode mode);
     void doMatch(const std::string& a, const std::string& b, const float low, const float high);
     void doGroup(const std::string& group, const float low, const float high);
     void addHistoric(int goalsA, int goalsB);
@@ -50,11 +52,11 @@ class WCMC {
     int m_trialsMax;
     int m_totalTeams;
     bool m_matchPrint, m_matchStats, m_goalsScored;
-    const std::vector<std::string> groups {"A", "B", "C", "D", "E", "F", "G", "H"};
+    std::vector<std::string> group_letters;
     std::vector<std::string> m_teamsByRank;
     std::vector<std::string> m_laterRoundTeams;
     float m_bestChiG, m_bestChiGD;
-    int m_mode; // Tournament progression
+    Mode m_mode; // Tournament progression
 };
 
 void WCMC::doMatch(const std::string& a, const std::string& b, const float low, const float high) {
@@ -151,39 +153,45 @@ std::vector<std::string> WCMC::readLine(const std::string& line) {
   std::istringstream buf(line);
   std::istream_iterator<std::string> beg(buf), end;
   std::vector<std::string> results(beg, end);
-  size_t location = results[0].find("-");
-  if (location != std::string::npos) results[0].replace(location, 1, " ");
+  for (size_t i = 0; i < results.size(); ++i) {
+    size_t location = results[i].find("-");
+    if (location != std::string::npos) results[i].replace(location, 1, " ");
+  }
   return results;
 }
 
 void WCMC::addTeams() {
 
   std::string line;
-  if (m_mode == 1) {
-    std::ifstream pass_group("wc_2018_pass_groups.txt"); 
-    while ( getline(pass_group, line) ) {
+  if (m_mode > kFULL_TOURNAMENT) {
+    std::ifstream pass;
+    if      (m_mode == kAFTER_GROUP)   pass.open("wc_2018_pass_groups.txt");
+    else if (m_mode == kAFTER_16)      pass.open("wc_2018_pass_16.txt");
+    else if (m_mode == kAFTER_QUARTER) pass.open("wc_2018_pass_quarter.txt");
+    else if (m_mode == kAFTER_SEMI)    pass.open("wc_2018_pass_semi.txt");
+
+    while ( getline(pass, line) ) {
       std::vector<std::string> results = readLine(line);
       m_laterRoundTeams.push_back( results[0] );
-      std::cout << "Passed group stage: '" << results[0] << "'" << std::endl;
+      std::cout << "Passed stage " << (int)m_mode << ": '" << results[0] << "'" << std::endl;
     }
   }
 
   std::ifstream teams("wc_2018_team_ranks.txt");
-  if (teams.is_open()) {
-    m_totalTeams = 0;
-    while ( getline(teams, line) ) {
-      std::vector<std::string> results = readLine(line);
-      if (m_mode == 0 || std::count(m_laterRoundTeams.begin(), m_laterRoundTeams.end(), results[0]) != 0) addTeam(results[0], results[1], /*rank ==*/ m_totalTeams);
-      else std:cout << "  Dropping team: '" << results[0] << "'" << std::endl;
-      ++m_totalTeams;
-    }
-    teams.close();
+  m_totalTeams = 0;
+  while ( getline(teams, line) ) {
+    std::vector<std::string> results = readLine(line);
+    if (m_mode == kFULL_TOURNAMENT || std::count(m_laterRoundTeams.begin(), m_laterRoundTeams.end(), results[0]) != 0)  {
+      addTeam(results[0], results[1], /*rank ==*/ m_totalTeams);
+    } else std:cout << "  Dropping team: '" << results[0] << "'" << std::endl;
+    ++m_totalTeams;
   }
   for (int i = 0; i < 6; ++i) m_h_roundWinner[std::to_string(i)] = new TH1F("", "", m_teams.size(), 0, m_teams.size()); // 5 is a special entry
 }
 
 void WCMC::addGroup(const std::string& group, const std::string& A, const std::string& B, const std::string& C, const std::string& D) {
   m_groups[group] = {A, B, C, D};
+  group_letters.push_back(group);
   for (unsigned i = 0; i < m_groups[group].size(); ++i) m_h_roundWinner[group + std::to_string(i)] = new TH1F("","", 4, -.5, 3.5);
 }
 
@@ -204,22 +212,19 @@ void WCMC::resetLaterGroups() {
 }
 
 void WCMC::addGroups() {
-  addGroup("A", "Russia", "Saudi Ar.", "Egypt", "Uruguay");
-  addGroup("B","Portugal", "Spain", "Morocco", "IR Iran");
-  addGroup("C", "France", "Australia", "Peru", "Denmark");
-  addGroup("D", "Argentina", "Iceland", "Croatia", "Nigeria");
-  addGroup("E", "Brazil", "Switzerland", "Costa Rica", "Serbia");
-  addGroup("F", "Germany", "Mexico", "Sweden", "Korea Rp.");
-  addGroup("G", "Belgium", "Panama", "Tunisia", "England");
-  addGroup("H", "Japan", "Senegal", "Colombia", "Poland");
+  std::ifstream groups("wc_2018_groups.txt");
+  std::string line;
+  while ( getline(groups, line) ) {
+    std::vector<std::string> r = readLine(line);
+    addGroup(r[0], r[1], r[2], r[3], r[4]);
+  }
 }
 
-WCMC::WCMC() {
+WCMC::WCMC(const Mode mode) {
   m_trialsMax = 100000;
   m_bestChiG = m_bestChiGD = -1;
 
-  // 0 = before WC, 1 = after group stage
-  m_mode = 1; 
+  m_mode = mode; 
     
   m_h_GoalsMC = new TH1F("MC",";Goals;Fraction",9,-0.5,8.5);
   m_h_GoalsData = new TH1F("Data",";Goals;",9,-0.5,8.5);
@@ -230,10 +235,12 @@ WCMC::WCMC() {
   loadHistoricData();
   std::cout << "Loading Teams" << std::endl;
   addTeams();
-  if (m_mode == 0) {
+  if (m_mode == kFULL_TOURNAMENT) {
     std::cout << "Loading Groups" << std::endl;
     addGroups();
   }
+
+  execute();
 }
 
 void WCMC::runTraining(float& resultLow, float& resultHigh, const float startLow, const float stopLow, const float startHigh, const float stopHigh, const float step) {
@@ -252,7 +259,7 @@ void WCMC::runTraining(float& resultLow, float& resultHigh, const float startLow
 
       for (int trial = 0; trial < m_trialsMax; ++trial) {
         R.SetSeed(seed++);
-        for (const std::string& group : groups)  doGroup(group, trial_goalines_low, trial_goalines_high);
+        for (const std::string& group : group_letters)  doGroup(group, trial_goalines_low, trial_goalines_high);
       }
 
       m_h_GoalsMC->Scale( 1./m_h_GoalsMC->Integral() );
@@ -307,9 +314,9 @@ void WCMC::runFinal(const float goalinessLow, const float goalinessHigh) {
     resetTeamStatistics(true);
     resetLaterGroups();
 
-    if (m_mode == 0) {
+    if (m_mode == kFULL_TOURNAMENT) {
       m_matchStats = true;
-      for (const std::string& group : groups)  {
+      for (const std::string& group : group_letters)  {
         doGroup(group, goalinessLow, goalinessHigh);
         std::string teamPlace[4];
         for (int position = 0; position < 4; ++position) {
@@ -349,7 +356,7 @@ void WCMC::runFinal(const float goalinessLow, const float goalinessHigh) {
     }
     m_matchStats = false;
 
-    if (m_mode == 1) {
+    if (m_mode == kAFTER_GROUP) {
       m_matchStats = true;
       for ( size_t t = 0; t < m_laterRoundTeams.size(); ++t ) {
         switch (t) {
@@ -365,7 +372,7 @@ void WCMC::runFinal(const float goalinessLow, const float goalinessHigh) {
       }
     }
 
-    if (m_mode < 2) {
+    if (m_mode < kAFTER_16) {
       resetTeamStatistics(false);
       for (int m = 49; m < 57; ++m) {
         doGroup(std::to_string(m), goalinessLow, goalinessHigh);
@@ -382,46 +389,90 @@ void WCMC::runFinal(const float goalinessLow, const float goalinessHigh) {
     }
     m_matchStats = false;
 
-    resetTeamStatistics(false);
-    for (int m = 57; m < 61; ++m) {
-      doGroup(std::to_string(m), goalinessLow, goalinessHigh);
-      const std::string winning = getWinningTeam(std::to_string(m));
-      if (m_matchPrint) std::cout << "Winner of QF match " << m << ":" << winning << std::endl;
-      m_h_roundWinner["2"]->Fill( m_teams[winning].m_index + 0.5 );
-      switch (m) {
-        case 57: case 58: m_groups["61"].push_back(winning); break;
-        case 59: case 60: m_groups["62"].push_back(winning); break;
+    if (m_mode == kAFTER_16) {
+      m_matchStats = true;
+      for ( size_t t = 0; t < m_laterRoundTeams.size(); ++t ) {
+        switch (t) {
+          case 0: case 1: m_groups["57"].push_back(m_laterRoundTeams.at(t)); break;
+          case 2: case 3: m_groups["59"].push_back(m_laterRoundTeams.at(t)); break; 
+          case 4: case 5: m_groups["58"].push_back(m_laterRoundTeams.at(t)); break; 
+          case 6: case 7: m_groups["60"].push_back(m_laterRoundTeams.at(t)); break; 
+        }
+      }
+    }
+
+    if (m_mode < kAFTER_QUARTER) {
+      resetTeamStatistics(false);
+      for (int m = 57; m < 61; ++m) {
+        doGroup(std::to_string(m), goalinessLow, goalinessHigh);
+        const std::string winning = getWinningTeam(std::to_string(m));
+        if (m_matchPrint) std::cout << "Winner of QF match " << m << ":" << winning << std::endl;
+        m_h_roundWinner["2"]->Fill( m_teams[winning].m_index + 0.5 );
+        switch (m) {
+          case 57: case 58: m_groups["61"].push_back(winning); break;
+          case 59: case 60: m_groups["62"].push_back(winning); break;
+        }
       }
     }
     m_matchStats = false;
 
-    resetTeamStatistics(false);
-    doGroup("61", goalinessLow, goalinessHigh);
-    const std::string finalistA = getWinningTeam("61");
-    doGroup("62", goalinessLow, goalinessHigh);
-    const std::string finalistB = getWinningTeam("62");
-    m_h_roundWinner["3"]->Fill( m_teams[finalistA].m_index + 0.5 ); 
-    m_h_roundWinner["3"]->Fill( m_teams[finalistB].m_index + 0.5 );
+    if (m_mode == kAFTER_QUARTER) {
+      m_matchStats = true;
+      for ( size_t t = 0; t < m_laterRoundTeams.size(); ++t ) {
+        switch (t) {
+          case 0: case 1: m_groups["61"].push_back(m_laterRoundTeams.at(t)); break;
+          case 2: case 3: m_groups["62"].push_back(m_laterRoundTeams.at(t)); break; 
+        }
+      }
+    }
+
+    std::string finalistA, finalistB;
+    if (m_mode < kAFTER_SEMI) {
+      resetTeamStatistics(false);
+      doGroup("61", goalinessLow, goalinessHigh);
+      finalistA = getWinningTeam("61");
+      m_teams[finalistA].m_points = -1; // Disable to get runner up
+      m_groups["63"].push_back(getWinningTeam("61")); // Runner up
+      doGroup("62", goalinessLow, goalinessHigh);
+      finalistB = getWinningTeam("62");
+      m_teams[finalistB].m_points = -1; // Disable to get runner up
+      m_groups["63"].push_back(getWinningTeam("62")); // Runner up
+      m_h_roundWinner["3"]->Fill( m_teams[finalistA].m_index + 0.5 ); 
+      m_h_roundWinner["3"]->Fill( m_teams[finalistB].m_index + 0.5 );
+    }
     m_matchStats = false;
+
+    if (m_mode == kAFTER_SEMI) {
+      m_matchStats = true;
+      finalistA = m_laterRoundTeams.at(0);
+      finalistB = m_laterRoundTeams.at(1);
+      m_groups["63"].push_back(m_laterRoundTeams.at(2));
+      m_groups["63"].push_back(m_laterRoundTeams.at(3));
+    }
 
     resetTeamStatistics(false);
     m_groups["64"].push_back(finalistA);
     m_groups["64"].push_back(finalistB);
+    doGroup("63", goalinessLow, goalinessHigh);
+    const std::string thirdPlace = getWinningTeam("63");
     doGroup("64", goalinessLow, goalinessHigh);
     const std::string winnerWinner = getWinningTeam("64");
     m_h_roundWinner["4"]->Fill( m_teams[winnerWinner].m_index + 0.5 );
-    if (m_matchPrint || trial % 1000 == 0) std::cout << "Trial:" << trial <<  " Winners of SFs " <<  finalistA << " & " << finalistB << ", WINNER WINNER:" << winnerWinner << std::endl << " ----------------- " << std::endl;
+    if (m_matchPrint || trial % 10000 == 0) std::cout << "Trial:" << trial 
+      << " 3rd place:" << thirdPlace << ". Winners of SFs " <<  finalistA << " & " << finalistB 
+      << ", WINNER WINNER:" << winnerWinner 
+      << std::endl << " ----------------- " << std::endl;
   }
   m_h_GoalsMC->Scale( 1./m_h_GoalsMC->Integral() );
   m_h_GoalDiffMC->Scale( 1./m_h_GoalDiffMC->Integral() );
 }
 
 void WCMC::execute() {
-  std::cout << "Execute" << std::endl;
+  std::cout << "Execute with mode " << (int)m_mode << std::endl;
   float resultLowFine, resultHighFine;
   const bool reTrain = false;
-  if (reTrain == true && m_mode != 0) {
-    std::cout << "Error. Can only train when m_mode = 0";
+  if (reTrain == true && m_mode != kFULL_TOURNAMENT) {
+    std::cout << "Error. Can only train when m_mode = kFULL_TOURNAMENT";
     return;
   }
   if (reTrain) {
@@ -437,24 +488,28 @@ void WCMC::execute() {
   }
   runFinal(resultLowFine, resultHighFine);
 
-  int numberOfPassingTeams = 16 / (m_mode + 1);
+  int numberOfPassingTeams = 16;
+  for (int i=0; i < (int)m_mode; ++i) numberOfPassingTeams /= 2;
   unsigned start = 0, end = 0; // Used mid-tournament
   switch (m_mode) {
-    case 1: start = 49; end = 57; break;
-    case 2: start = 57; end = 61; break;
-    case 3: start = 61; end = 64; break;
-    case 4: start = 64; end = 65; break;
+    case kFULL_TOURNAMENT: break;
+    case kAFTER_GROUP:   start = 49; end = 57; break;
+    case kAFTER_16:      start = 57; end = 61; break;
+    case kAFTER_QUARTER: start = 61; end = 63; break; // Note game 63 is for 3rd place, we don't do this one
+    case kAFTER_SEMI:    start = 63; end = 65; break;
   }
+
+  bookOutput::clear();
 
   nicePlot* np_base = new nicePlot();
   np_base->setRBounds(1./m_trialsMax * 0.9, 2e-1);
   np_base->setLogz(true);
   np_base->normaliseToOne();
-  if (m_mode == 0) { // Group stage games
+  if (m_mode == kFULL_TOURNAMENT) { // Group stage games
     const unsigned groupSize = m_groups["A"].size();
     for (unsigned i = 0; i < groupSize - 1; ++i) {
       for (unsigned j = i + 1; j < groupSize; ++j) {
-        for (const std::string& group : groups) {
+        for (const std::string& group : group_letters) {
           const vector<std::string>& teams = m_groups.at(group);
           nicePlot* np = new nicePlot(np_base);
           np->init(teams.at(i) + " Goals", teams.at(j) + " Goals", "");
@@ -468,10 +523,10 @@ void WCMC::execute() {
         }
       }
     }
-    bookOutput::setBreak(groups.size());
+    bookOutput::setBreak(group_letters.size());
     bookOutput::get().doMultipadOutput("WCMC_GroupStage", 3, 2);
     bookOutput::clear();
-  } else if (m_mode > 0) { // Knockout games
+  } else if (m_mode >= kAFTER_GROUP) { // Knockout games
     for (unsigned i = start; i < end; ++i) {
       const std::string teamA = m_groups[std::to_string(i)].at(0);
       const std::string teamB = m_groups[std::to_string(i)].at(1);
@@ -485,7 +540,6 @@ void WCMC::execute() {
       np->addLable(.5, .80, teamB + ": " + std::to_string( maxY - 1 ));
       np->addLable(.5, .85, "Game: " + std::to_string(i));
     }
-    bookOutput::setBreak(groups.size());
     bookOutput::get().doBookOutput("WCMC_KnockoutGameScores_Mode" + std::to_string(m_mode));
     bookOutput::clear();    
   }
@@ -513,12 +567,12 @@ void WCMC::execute() {
   bookOutput::get().doMultipadOutput("WCMC_Tuning", 2, 1);
   bookOutput::clear();
 
-  if (m_mode == 0) {
+  if (m_mode == kFULL_TOURNAMENT) {
     np_base_1d->useAltColourScheme(2);
     np_base_1d->setLineWidth(2);
     np_base_1d->setLegend(.7, .75);
     np_base_1d->setBounds(-.5, 3.5, 0, 1.4);
-    for (const std::string& group : groups) {
+    for (const std::string& group : group_letters) {
       nicePlot* np = new nicePlot(np_base_1d);
       np->init("Team", "Probability");
       np->normaliseToOne();
@@ -538,34 +592,39 @@ void WCMC::execute() {
 
   np_base_1d->setBounds(0, m_teams.size());
   np_base_1d->setDoLegend(false);
-  if (m_mode < 2) np_base_1d->stretch = true;
+  double labelOffset = .3;
+  if (m_mode < kAFTER_16) {
+    np_base_1d->stretch = true;
+    labelOffset = .7;
+  }
   np_base_1d->useAltColourScheme(1);
   np_base_1d->setLineWidth(6);
 
   for (const std::string& team : m_teamsByRank) np_base_1d->addBinLabel(m_teams[team].m_abreviation);
 
-  for (int i = m_mode; i < 5; ++i) {
+  for (int i = (int)m_mode; i < 5; ++i) {
     nicePlot* np_round = new nicePlot(np_base_1d);
     np_round->normaliseToOne();
     np_round->n_mc += i;
     np_round->init("Team", "Probability");
-    np_round->setYBounds(0, 1. - (i * 0.10));
+    // np_round->setYBounds(0, 1. - (i * 0.90));
+    np_round->setYBounds(0, 1.);
     np_round->addMC(m_h_roundWinner[std::to_string(i)], "");
     np_round->scaleLastMC(numberOfPassingTeams);
     numberOfPassingTeams /= 2;
     switch(i) {
-      case 0: np_round->addLable(.7, .8, "Probability of passing the Group Stage"); break; 
-      case 1: np_round->addLable(.7, .8, "Probability of passing the Round Of 16"); break; 
-      case 2: np_round->addLable(.7, .8, "Probability of passing the Quarter Finals"); break; 
-      case 3: np_round->addLable(.7, .8, "Probability of passing the Semi Finals"); break; 
-      case 4: np_round->addLable(.7, .8, "Probability of Winning The Tournament"); break; 
+      case 0: np_round->addLable(labelOffset, .8, "Probability of passing the Group Stage"); break; 
+      case 1: np_round->addLable(labelOffset, .8, "Probability of passing the Round Of 16"); break; 
+      case 2: np_round->addLable(labelOffset, .8, "Probability of passing the Quarter Finals"); break; 
+      case 3: np_round->addLable(labelOffset, .8, "Probability of passing the Semi Finals"); break; 
+      case 4: np_round->addLable(labelOffset, .8, "Probability of Winning The Tournament"); break; 
     }
   }
-  bookOutput::setBreak(5 - m_mode);
-  bookOutput::get().doBookOutput("WCMC_KnockoutResults_Mode" + std::to_string(m_mode));
+  bookOutput::setBreak(5 - (int)m_mode);
+  bookOutput::get().doBookOutput("WCMC_KnockoutResults_Mode" + std::to_string((int)m_mode));
   bookOutput::clear();
 
-  if (m_mode == 0) {
+  if (m_mode == kFULL_TOURNAMENT) {
     nicePlot* np_goals = new nicePlot(np_base_1d);
     np_goals->init("Team", "Number of Goals");
     np_goals->addMC(m_h_roundWinner["5"], "");
@@ -581,8 +640,11 @@ int main() {
   gROOT->ProcessLine(".L AtlasStyle.C");
   gROOT->ProcessLine("SetAtlasStyle();");
   gErrorIgnoreLevel = 10000;
-  WCMC wc2018;
-  wc2018.execute();
+  WCMC wc2018_a(kFULL_TOURNAMENT);
+  WCMC wc2018_b(kAFTER_GROUP);
+  WCMC wc2018_c(kAFTER_16);
+  WCMC wc2018_d(kAFTER_QUARTER);
+  WCMC wc2018_e(kAFTER_SEMI);
 }
 
 int wcMC_2018() {
