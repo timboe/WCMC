@@ -10,6 +10,6 @@ To run:
 time root -b -q wcMC_2018.cxx++
 ```
 
-See [this blog post](http://tim-martin.co.uk/2018/05/20/world-cup-monte-carlo-part-1.html) for more information. 
+See [this blog post](http://tim-martin.co.uk/2018/05/20/world-cup-monte-carlo-part-1.html) for more information and [this one](http://tim-martin.co.uk/2018/08/19/world-cup-monte-carlo-part-2.html) to see how WCMC did in 2018. 
 
 ![WCMC](https://github.com/timboe/WCMC/blob/master/img/WCMC_GroupResults_1.png?raw=true)
