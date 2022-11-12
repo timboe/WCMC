@@ -15,7 +15,7 @@ class WCMC {
     WCMC(const Mode mode);
     void doMatch(const std::string& a, const std::string& b, const float low, const float high);
     void doGroup(const std::string& group, const float low, const float high);
-    void addHistoric(int goalsA, int goalsB);
+    void addHistoric(int goalsA, int goalsB, int year);
     void loadHistoricData();
     void addTeams();
     void addTeam(const std::string& t, const std::string& abreviation, const int rank);
@@ -44,9 +44,11 @@ class WCMC {
     std::map<std::string, std::vector<std::string>> m_groups;   
     TRandom3 R;
     TH1F* m_h_GoalsMC;
-    TH1F* m_h_GoalsData;
+    TH1F* m_h_GoalsData_2014;
+    TH1F* m_h_GoalsData_2018;
     TH1F* m_h_GoalDiffMC;
-    TH1F* m_h_GoalDiffData;
+    TH1F* m_h_GoalDiffData_2014;
+    TH1F* m_h_GoalDiffData_2018;
     std::map<std::string, TH2F*> m_h_matchResult;
     std::map<std::string, TH1F*> m_h_roundWinner;
     int m_trialsMax;
@@ -55,7 +57,7 @@ class WCMC {
     std::vector<std::string> group_letters;
     std::vector<std::string> m_teamsByRank;
     std::vector<std::string> m_laterRoundTeams;
-    float m_bestChiG, m_bestChiGD;
+    float m_bestChiG_14, m_bestChiGD_14, m_bestChiG_18, m_bestChiGD_18;
     Mode m_mode; // Tournament progression
 };
 
@@ -128,25 +130,30 @@ void WCMC::addTeam(const std::string& t, const std::string& abreviation, const i
   m_teamsByRank.push_back(t);
 }
 
-void WCMC::addHistoric(int goalsA, int goalsB) {
-  m_h_GoalDiffData->Fill(abs( goalsA - goalsB ));
-  m_h_GoalsData->Fill(goalsA + goalsB);
+void WCMC::addHistoric(int goalsA, int goalsB, int year) {
+  switch (year) {
+    case 2014:  m_h_GoalDiffData_2014->Fill(abs( goalsA - goalsB )); m_h_GoalsData_2014->Fill(goalsA + goalsB); break;
+    case 2018:  m_h_GoalDiffData_2018->Fill(abs( goalsA - goalsB )); m_h_GoalsData_2018->Fill(goalsA + goalsB); break;
+  }
 }
 
 void WCMC::loadHistoricData() {  // 2014 WC
   std::string line;
-  std::ifstream historic("wc_2014_results.txt");
-  if (historic.is_open())  {
-    while ( getline(historic, line) ) {
-      std::istringstream buf(line);
-      std::istream_iterator<std::string> beg(buf), end;
-      std::vector<std::string> results(beg, end);
-      addHistoric(std::stoi(results[0]), std::stoi(results[1]));
-    }
-    historic.close();
+  std::ifstream historic2014("wc_2014_results.txt");
+  while ( getline(historic2014, line) ) {
+    std::vector<std::string> results = readLine(line);
+    addHistoric(std::stoi(results[0]), std::stoi(results[1]), 2014);
   }
-  m_h_GoalDiffData->Scale( 1. / m_h_GoalDiffData->Integral() );
-  m_h_GoalsData->Scale(1. / m_h_GoalsData->Integral() );
+  std::ifstream historic2018("wc_2018_results.txt");
+  while ( getline(historic2018, line) ) {
+    std::vector<std::string> results = readLine(line);
+    addHistoric(std::stoi(results[0]), std::stoi(results[1]), 2018);
+  }
+  m_h_GoalDiffData_2014->Scale( 1. / m_h_GoalDiffData_2014->Integral() );
+  m_h_GoalsData_2014->Scale(1. / m_h_GoalsData_2014->Integral() );
+  m_h_GoalDiffData_2018->Scale( 1. / m_h_GoalDiffData_2018->Integral() );
+  m_h_GoalsData_2018->Scale(1. / m_h_GoalsData_2018->Integral() );
+   
 }
 
 std::vector<std::string> WCMC::readLine(const std::string& line) {
@@ -186,6 +193,17 @@ void WCMC::addTeams() {
     } else std:cout << "  Dropping team: '" << results[0] << "'" << std::endl;
     ++m_totalTeams;
   }
+
+  std::ifstream teams_updated("wc_2018_team_ranks_updated.txt");
+  int rank = 0;
+  while ( getline(teams_updated, line) ) {
+    std::vector<std::string> results = readLine(line);
+    if (m_mode == kFULL_TOURNAMENT || std::count(m_laterRoundTeams.begin(), m_laterRoundTeams.end(), results[0]) != 0)  {
+      m_teams[results[0]].m_rank = rank;
+    }
+    ++rank;
+  }
+
   for (int i = 0; i < 6; ++i) m_h_roundWinner[std::to_string(i)] = new TH1F("", "", m_teams.size(), 0, m_teams.size()); // 5 is a special entry
 }
 
@@ -222,14 +240,16 @@ void WCMC::addGroups() {
 
 WCMC::WCMC(const Mode mode) {
   m_trialsMax = 100000;
-  m_bestChiG = m_bestChiGD = -1;
+  m_bestChiG_14 = m_bestChiGD_14 = m_bestChiG_18 = m_bestChiGD_18 -1;
 
   m_mode = mode; 
     
   m_h_GoalsMC = new TH1F("MC",";Goals;Fraction",9,-0.5,8.5);
-  m_h_GoalsData = new TH1F("Data",";Goals;",9,-0.5,8.5);
+  m_h_GoalsData_2014 = new TH1F("Data",";Goals;",9,-0.5,8.5);
+  m_h_GoalsData_2018 = new TH1F("Data",";Goals;",9,-0.5,8.5);
   m_h_GoalDiffMC = new TH1F("MC ",";Goals Difference;Fraction",9,-0.5,8.5);
-  m_h_GoalDiffData = new TH1F("MC ",";Goals Difference;Fraction",9,-0.5,8.5);
+  m_h_GoalDiffData_2014 = new TH1F("MC ",";Goals Difference;Fraction",9,-0.5,8.5);
+  m_h_GoalDiffData_2018 = new TH1F("MC ",";Goals Difference;Fraction",9,-0.5,8.5);
 
   std::cout << "Loading Historic" << std::endl;
   loadHistoricData();
@@ -265,19 +285,22 @@ void WCMC::runTraining(float& resultLow, float& resultHigh, const float startLow
       m_h_GoalsMC->Scale( 1./m_h_GoalsMC->Integral() );
       m_h_GoalDiffMC->Scale( 1./m_h_GoalDiffMC->Integral() );
 
-      float goodnessA = m_h_GoalsData->Chi2Test(m_h_GoalsMC, "NORM  UU CHI2/NDF");
-      float goodnessB = m_h_GoalDiffData->Chi2Test(m_h_GoalDiffMC, "NORM  UU CHI2/NDF");
+      float goodnessA = m_h_GoalsData_2014->Chi2Test(m_h_GoalsMC, "NORM  UU CHI2/NDF");
+      float goodnessB = m_h_GoalDiffData_2014->Chi2Test(m_h_GoalDiffMC, "NORM  UU CHI2/NDF");
 
       if ( goodnessA + goodnessB < bestChi) {
         bestChi = goodnessA + goodnessB;
-        m_bestChiG = goodnessA;
-        m_bestChiGD = goodnessB;
+        m_bestChiG_14 = goodnessA;
+        m_bestChiGD_14 = goodnessB;
+        m_bestChiG_18  = m_h_GoalsData_2018->Chi2Test(m_h_GoalsMC, "NORM  UU CHI2/NDF");
+        m_bestChiGD_18 = m_h_GoalDiffData_2018->Chi2Test(m_h_GoalDiffMC, "NORM  UU CHI2/NDF");
         resultLow = trial_goalines_low;
         resultHigh = trial_goalines_high;
         std::cout << "--- Chi2 of:" << goodnessA + goodnessB << " for Low:" << resultLow << " High:" << resultHigh << endl;
       }
     }
   }
+  std::cout << "Data18 chi2 when using the Data14 tuning dataset: G=" << m_bestChiG_18 << " GD=" << m_bestChiGD_18 << std::endl;
 }
 
 const std::string WCMC::getWinningTeam(const std::string group) {
@@ -479,12 +502,14 @@ void WCMC::execute() {
     float resultLowCorse, resultHighCorse;
     runTraining(resultLowCorse, resultHighCorse, 0.1, 5.0, 5.0, 0.1, 0.1);
     runTraining(resultLowFine, resultHighFine, resultLowCorse - 0.5, resultLowCorse + 0.5, resultHighCorse + 0.5, resultHighCorse - 0.5, 0.01);
-    std::cout << " ---->>>>> Tuned Low: "<< resultLowFine << " High: " << resultHighFine << "(Best chi2 G:" << m_bestChiG << ", GD:" << m_bestChiGD << ")" << std::endl;
+    std::cout << " ---->>>>> Tuned Low: "<< resultLowFine << " High: " << resultHighFine << "(Best chi2 G:" << m_bestChiG_14 << ", GD:" << m_bestChiGD_14 << ")" << std::endl;
   } else {
     resultLowFine = 1.52;
     resultHighFine = 1.79;
-    m_bestChiG = 1.03463;
-    m_bestChiGD = 0.616308;
+    m_bestChiG_14 = 1.03463;
+    m_bestChiGD_14 = 0.616308;
+    m_bestChiG_18 = 1.87101;
+    m_bestChiGD_18 = 0.980312;
   }
   runFinal(resultLowFine, resultHighFine);
 
@@ -551,18 +576,22 @@ void WCMC::execute() {
   np_base_1d->setBounds(-.5, 8.5, 0.001, .85, 0., 2.);
   nicePlot* np_tuneGoals = new nicePlot(np_base_1d);
   np_tuneGoals->init("Total Goals", "Probability", "MC/Data");
-  np_tuneGoals->addData(m_h_GoalsData, "Data 2014");
-  np_tuneGoals->addMC(m_h_GoalsMC, "MC", true);
-  np_tuneGoals->addLable(0.2,0.75, "Goaliness Low: " + std::to_string(resultLowFine));
-  np_tuneGoals->addLable(0.2,0.80, "Goaliness High: " + std::to_string(resultHighFine));
-  np_tuneGoals->addLable(0.2,0.85, "#chi^{2}/DoF: " + std::to_string(m_bestChiG));
+  np_tuneGoals->addData(m_h_GoalsData_2014, "Data 2014", 0, false);
+  np_tuneGoals->addMC(m_h_GoalsMC, "MC", true, 0.);
+  np_tuneGoals->addData(m_h_GoalsData_2018, "Data 2018", 0, false);
+  np_tuneGoals->addLable(0.2,0.70, "Goaliness Low: " + std::to_string(resultLowFine));
+  np_tuneGoals->addLable(0.2,0.75, "Goaliness High: " + std::to_string(resultHighFine));
+  np_tuneGoals->addLable(0.2,0.80, "#chi^{2}/DoF 2014: " + std::to_string(m_bestChiG_14));
+  np_tuneGoals->addLable(0.2,0.85, "#chi^{2}/DoF 2018: " + std::to_string(m_bestChiG_18));
   nicePlot* np_tuneGoalDiff = new nicePlot(np_base_1d);
   np_tuneGoalDiff->init("Goal Difference", "Probability", "MC/Data");
-  np_tuneGoalDiff->addData(m_h_GoalDiffData, "Data 2014");
-  np_tuneGoalDiff->addMC(m_h_GoalDiffMC, "MC", true);
-  np_tuneGoalDiff->addLable(0.2,0.75, "Goaliness Low: " + std::to_string(resultLowFine));
-  np_tuneGoalDiff->addLable(0.2,0.80, "Goaliness High: " + std::to_string(resultHighFine));
-  np_tuneGoalDiff->addLable(0.2,0.85, "#chi^{2}/DoF: " + std::to_string(m_bestChiGD));
+  np_tuneGoalDiff->addData(m_h_GoalDiffData_2014, "Data 2014", 0, false);
+  np_tuneGoalDiff->addMC(m_h_GoalDiffMC, "MC", true, 0);
+  np_tuneGoalDiff->addData(m_h_GoalDiffData_2018, "Data 2018", 0, false);
+  np_tuneGoalDiff->addLable(0.2,0.70, "Goaliness Low: " + std::to_string(resultLowFine));
+  np_tuneGoalDiff->addLable(0.2,0.75, "Goaliness High: " + std::to_string(resultHighFine));
+  np_tuneGoalDiff->addLable(0.2,0.80, "#chi^{2}/DoF 2014: " + std::to_string(m_bestChiGD_14));
+  np_tuneGoalDiff->addLable(0.2,0.85, "#chi^{2}/DoF 2018: " + std::to_string(m_bestChiGD_18));
   bookOutput::setBreak(1);
   bookOutput::get().doMultipadOutput("WCMC_Tuning", 2, 1);
   bookOutput::clear();
@@ -608,7 +637,7 @@ void WCMC::execute() {
     np_round->n_mc += i;
     np_round->init("Team", "Probability");
     // np_round->setYBounds(0, 1. - (i * 0.90));
-    np_round->setYBounds(0, 1.);
+    np_round->setYBounds(0, 0.2);
     np_round->addMC(m_h_roundWinner[std::to_string(i)], "");
     np_round->scaleLastMC(numberOfPassingTeams);
     numberOfPassingTeams /= 2;

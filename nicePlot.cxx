@@ -86,6 +86,7 @@ void nicePlot::reset() {
   ratioLineValue = 1;
   stretch = false;
   mc_stack = nullptr;
+  titleOffsetMod = 0;
 }
 
 void nicePlot::init(TString _xTitle, TString _yTitle, TString _rTitle, bool quiet) {
@@ -141,7 +142,7 @@ void nicePlot::useAltColourScheme(int _i) {
     data_fill[5] = 3354;
 
     data_fill[0] = 1001;
-    data_fill[1] = 1001; // All solid
+    data_fill[1] = 3345; // All solid
     data_fill[2] = 1001;
     data_fill[3] = 1001;
     data_fill[4] = 1001; 
@@ -320,6 +321,7 @@ void nicePlot::copy( nicePlot& _copy ) {
   ratioLineValue = _copy.ratioLineValue;
   stretch = _copy.stretch;
   mc_stack = _copy.mc_stack;
+  titleOffsetMod = _copy.titleOffsetMod;
 }
 
 void nicePlot::setBounds(double _xMin, double _xMax, double _yMin, double _yMax, double _rMin, double _rMax) {
@@ -1083,7 +1085,7 @@ TCanvas* nicePlot::getCanvas(TPad* _toDrawInto) {
     _frame_top->GetXaxis()->SetTitleSize(labelSize);
     _frame_top->GetYaxis()->SetLabelSize(labelSize);
     _frame_top->GetYaxis()->SetTitleSize(labelSize);
-    _frame_top->GetYaxis()->SetTitleOffset(titleOffset);
+    _frame_top->GetYaxis()->SetTitleOffset(titleOffset * (1.+yOffset));
 
     _frame_top->GetXaxis()->SetTitleColor(0);  // WC MC
     _frame_top->GetYaxis()->SetTitleColor(0);
@@ -1103,7 +1105,9 @@ TCanvas* nicePlot::getCanvas(TPad* _toDrawInto) {
     for (unsigned int i=0; i < dataStat.size(); ++i) dataStat[i]->Draw("same P" + drawOp);
     for (unsigned int i=0; i < mc.size();   ++i) {
       //cout << "drawing " << mc[i] << " " << mc[i]->GetTitle() << endl;
-      mc[i]  ->Draw(TString("same P") + mc_do[i] + drawOp);
+      TString draw = TString("same") + mc_do[i] + (drawOp == "" ? "P" : drawOp);
+      mc[i]  ->Draw(draw);
+      std::cout << "Draw opts:" << draw << std::endl; 
     }
     if (mc_stack != nullptr)  {
       mc_stack->Draw("same");
@@ -1114,12 +1118,15 @@ TCanvas* nicePlot::getCanvas(TPad* _toDrawInto) {
     if (fit != "") {
       float fit_y = 0.9;
       for (unsigned int i=0; i < mc.size(); ++i) {
-        mc[i]->Fit(fit, "S", "", fitMin, fitMax);
-        TF1* myfit = mc[i]->GetFunction(fit);
+        TF1* fitFn = new TF1("",fit,fitMin,fitMax);
+        // fitFn->SetParameters(1, 1, 30, 40); // Hack
+        mc[i]->Fit(fitFn, "S0", "", fitMin, fitMax);
+        TF1* myfit = fitFn;//mc[i]->GetFunction(fit);
         if (myfit) {
           myfit->SetLineColor(mc_col[i]);
-          myfit->SetLineWidth(1);
-          myfit->SetLineStyle(3);
+          myfit->SetLineWidth(line_width);
+          myfit->SetLineStyle(2);
+          myfit->DrawF1(fitMin, fitMax, "CSAME");
           if (print_fit) {
             for (int p=0; p < myfit->GetNpar(); ++p) {
               std::stringstream ss;
@@ -1209,7 +1216,7 @@ TCanvas* nicePlot::getCanvas(TPad* _toDrawInto) {
     TLine* _l = new TLine();
     _l->SetLineStyle( lineStyle.at(i) );
     _l->SetLineWidth( lineWidth.at(i) );
-    if (plot2D != nullptr) _l->SetLineColor(0);
+    if (plot2D != nullptr || true /*dark mode*/) _l->SetLineColor(0);
     bool _vertical = false;
     if (lineY1.at(i) == FLT_MAX && lineY2.at(i) == FLT_MAX) { // Set to pad
       lineY1.at(i) = yMin;

@@ -1,47 +1,93 @@
-10
-5
-8.5
-6.5
-5
-4.5
-6.5
-6
-6.5
-6
-6
-6.5
-4.5
-10
-7
-6
-8.5
-5.5
-6
-6
-10
-5.5
-6.5
-6.5
-8
-8
-11
-7
-6.5
-5.5
-8
-6
-8.5
-8
-6
-5.5
-7.5
-7.5
-7
-7
-6.5
-6.5
-6
-7
-6.5
-10
-7.5
+# Group stages
+# Matchday 1
+10. L Russia v Saudi Arabia
+5.0 W Egypt v Uruguay
+8.5 W Morocco v Iran 
+6.5 L Portugal v Spain 
+5.0 L France v Australia 
+4.5 L Argentina v Iceland
+6.5 L Peru v Denmark 
+6.0 L Croatia v Nigeria
+# Matchday 2
+6.5 L Costa Rica v Serbia
+6.0 L Germany v Mexico
+6.0 L Brazil v Switzerland
+6.5 W Sweden v South Korea
+4.5 L Belgium v Panama
+10. L Tunisia v England
+# Matchday 3
+7.0 L Poland v Senegal
+6.0 L Colombia v Japan
+8.5 L Russia v Egypt
+5.5 W Portugal v Morocco
+6.0 W Uruguay v Saudi Arabia
+6.0 W Iran v Spain
+# Matchday 4
+10. L France v Peru
+5.5 L Denmark v Australia
+6.5 L  Argentina v Croati
+6.5 L Brazil v Costa Rica
+8.0 L Nigeria v Iceland
+8.0 L Serbia v Switzerland
+# Matchday 5
+11. L Belgium v Tunisia
+7.0 L Germany v Sweden
+6.5 L South Korea v Mexico 
+5.5 L England v Panama
+8.0 L Japan v Senegal 
+6.0 L Poland v Colombia
+# Matchday 6
+8.0 L Uruguay v Russia 
+8.5 L Saudi Arabia v Egypt
+5.5 L Iran v Portugal 
+6.0 L Spain v Morocco
+7.5 L Denmark v France
+7.5 L Australia v Peru
+7.0 L Nigeria v Argentina
+7.0 L Iceland v Croatia
+# Matchday 7
+6.5 L South Korea v Germany
+6.5 L Mexico v Sweden 
+6.0 L Serbia v Brazil
+6.0 L Switzerland v Costa Rica
+7.0 W Japan v Poland
+6.5 L Senegal v Colombia
+10. W England v Belgium
+7.5 L Panama v Tunisia
+# Round of 16
+6.0 L France v Argentina
+7.0 L Uruguay v Portugal 
+7.0 L Spain v Russia 
+6.5 W Croatia v Denmark 
+6.0 L Brazil v Mexico 
+6.0 L Belgium v Japan
+7.0 L Sweden v Switzerland
+6.5 W Colombia v England
+# Quarter
+6.5 L Uruguay v France
+6.5 L Brazil v Belgium
+6.0 L Russia v Croatia 
+6.5 L Sweden v England
+# Semi
+9.5 L France v Belgium
+6.0 W Croatia v England 
+# Final and 3rd
+6.5 L France v Croatia 
+12. L Belgium v England
+##
+# To win
+5.5 L Germany
+# To reach semi
+2.1 L Germany
+3.2 L Argentina
+3.6 L Portugal
+2.8 W Belgium
+# Group winners
+1.80 W Uruguay A
+2.80 L Portugal B
+1.30 W France C
+1.72 L Argentina D
+1.33 W Brazil E
+1.33 L Germany F
+1.66 W Belgium G
+2.62 L Poland H
