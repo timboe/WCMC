@@ -51,8 +51,11 @@ class WCMC {
     TH1F* m_h_GoalDiffMC;
     TH1F* m_h_GoalDiffData_Test;
     TH1F* m_h_GoalDiffData_Training;
+    TH2F* m_h_trainCorse;
+    TH2F* m_h_trainFine;
     std::map<std::string, TH2F*> m_h_matchResult;
     std::map<std::string, TH1F*> m_h_roundWinner;
+    std::map<std::string, std::string> m_teamToAbrieviation;
     int m_trialsMax;
     int m_totalTeams;
     bool m_matchPrint, m_matchStats, m_goalsScored;
@@ -130,6 +133,7 @@ void WCMC::addTeam(const std::string& t, const std::string& abreviation, const i
   m_teams[t].m_abreviation = abreviation;
   std::cout << "Team " << t << " (" << abreviation << ") Rank:" << rank << " Index:" << pos << std::endl; 
   m_teamsByRank.push_back(t);
+  m_teamToAbrieviation[t] = abreviation;
 }
 
 void WCMC::addHistoric(int goalsA, int goalsB, int year) {
@@ -243,7 +247,7 @@ void WCMC::addGroups() {
 }
 
 WCMC::WCMC(const Mode mode) {
-  m_trialsMax = 100000;
+  m_trialsMax = 1000000;
   m_bestChiG_Test = m_bestChiGD_Test = m_bestChiG_Training = m_bestChiGD_Training = -1;
 
   m_mode = mode; 
@@ -271,10 +275,27 @@ void WCMC::runTraining(float& resultLow, float& resultHigh, const float startLow
   m_matchPrint = false;
   m_matchStats = false;
   m_goalsScored = false;
+
+  TH2F* hTrain;
+  int nBins = (startHigh - stopHigh) / step; 
+  if (step > 0.05) {
+    m_h_trainCorse = new TH2F("TrainC", ";Low;High", nBins+1, startLow, stopLow, nBins+1, stopHigh, startHigh);
+    std::cout << "New training CORSE " << nBins << ", " << startLow << " " << stopLow << ", " << startHigh << " " << stopHigh << std::endl; 
+    hTrain = m_h_trainCorse;
+  } else {
+    m_h_trainFine = new TH2F("TrainF", ";Low;High", nBins, startLow, stopLow, nBins, stopHigh, startHigh);
+    std::cout << "New training FINE " << nBins << ", " << startLow << " " << stopLow << ", " << startHigh << " " << stopHigh << std::endl; 
+    hTrain = m_h_trainFine;
+  }
+
   float bestChi = 999;
   for (float trial_goalines_low = startLow; trial_goalines_low < stopLow; trial_goalines_low += step) {
     for (float trial_goalines_high = startHigh; trial_goalines_high > stopHigh; trial_goalines_high -= step) {
-      if (trial_goalines_high - trial_goalines_low < 1e-2) continue;
+      if (trial_goalines_high - trial_goalines_low < 1e-2) {
+        //int b =  hTrain->FindBin(trial_goalines_low, trial_goalines_high);
+        //hTrain->SetBinContent(b, 0);
+        continue;
+      }
       std::cout << std::setprecision(4) << "[" << trial_goalines_low << "," << trial_goalines_high << "] " << std::flush;
       int seed = 0;
 
@@ -282,9 +303,9 @@ void WCMC::runTraining(float& resultLow, float& resultHigh, const float startLow
       m_h_GoalDiffMC->Reset();
       resetTeamStatistics(true);
 
-      int trials = m_trialsMax;
-      if (step > 0.05) trials /= 100;
-      else trials /= 10;
+      int multiplier = 10;
+      int trials = 10000 * multiplier;
+      if (hTrain == m_h_trainFine) trials = 1000 * multiplier;
 
       for (int trial = 0; trial < trials; ++trial) {
         R.SetSeed(seed++);
@@ -296,6 +317,10 @@ void WCMC::runTraining(float& resultLow, float& resultHigh, const float startLow
 
       const float goodnessA = m_h_GoalsData_Training->Chi2Test(m_h_GoalsMC, "NORM  UU CHI2/NDF");
       const float goodnessB = m_h_GoalDiffData_Training->Chi2Test(m_h_GoalDiffMC, "NORM  UU CHI2/NDF");
+
+      int b =  hTrain->FindBin(trial_goalines_low, trial_goalines_high);
+      hTrain->SetBinContent(b, goodnessA+goodnessB);
+      //std::cout << std::endl << "Fill bin " << trial_goalines_low << "," << trial_goalines_high << " = " << b << " to " << goodnessA+goodnessB << std::endl;
 
       if ( goodnessA + goodnessB < bestChi) {
         bestChi = goodnessA + goodnessB;
@@ -340,9 +365,18 @@ void WCMC::runFinal(const float goalinessLow, const float goalinessHigh) {
   m_h_GoalsMC->Reset();
   m_h_GoalDiffMC->Reset();
   m_goalsScored = true;
+  bool firstEnglandWin = true;
+  std::map<std::string, int> outcomes;
+  std::map<std::string, int> outcomesToQuarter;
+  std::map<std::string, int> outcomesToSemi;
+
   for (int trial = 0; trial < m_trialsMax; ++ trial) {
     m_matchPrint = (trial == m_trialsMax-1);
     R.SetSeed(seed++);
+
+    std::set<std::string> dropOutAt16;
+    std::set<std::string> dropOutAtQuarter;
+    std::set<std::string> dropOutAtSemi;
 
     resetTeamStatistics(true);
     resetLaterGroups();
@@ -412,6 +446,9 @@ void WCMC::runFinal(const float goalinessLow, const float goalinessHigh) {
         const std::string winning = getWinningTeam(std::to_string(m));
         if (m_matchPrint) std::cout << "Winner of round " << m << ":" << winning << std::endl;
         m_h_roundWinner["1"]->Fill( m_teams[winning].m_index + 0.5 ); // Many entries here, so we offset the axis ticks
+        m_teams[winning].m_points = -1; // Disable to get runner up
+        const std::string dropOut = getWinningTeam(std::to_string(m));
+        dropOutAt16.insert( m_teamToAbrieviation[dropOut] );
         switch (m) {
           case 49: case 50: m_groups["57"].push_back(winning); break;
           case 51: case 52: m_groups["59"].push_back(winning); break;
@@ -441,6 +478,9 @@ void WCMC::runFinal(const float goalinessLow, const float goalinessHigh) {
         const std::string winning = getWinningTeam(std::to_string(m));
         if (m_matchPrint) std::cout << "Winner of QF match " << m << ":" << winning << std::endl;
         m_h_roundWinner["2"]->Fill( m_teams[winning].m_index + 0.5 );
+        m_teams[winning].m_points = -1; // Disable to get runner up
+        const std::string dropOut = getWinningTeam(std::to_string(m));
+        dropOutAtQuarter.insert( m_teamToAbrieviation[dropOut] );
         switch (m) {
           case 57: case 58: m_groups["61"].push_back(winning); break;
           case 59: case 60: m_groups["62"].push_back(winning); break;
@@ -459,17 +499,21 @@ void WCMC::runFinal(const float goalinessLow, const float goalinessHigh) {
       }
     }
 
-    std::string finalistA, finalistB;
+    std::string finalistA, finalistB, runnerUpA, runnerUpB;
     if (m_mode < kAFTER_SEMI) {
       resetTeamStatistics(false);
       doGroup("61", goalinessLow, goalinessHigh);
       finalistA = getWinningTeam("61");
       m_teams[finalistA].m_points = -1; // Disable to get runner up
-      m_groups["63"].push_back(getWinningTeam("61")); // Runner up
+      runnerUpA = getWinningTeam("61");
+      dropOutAtSemi.insert( m_teamToAbrieviation[runnerUpA] );
+      m_groups["63"].push_back(runnerUpA); // Runner up
       doGroup("62", goalinessLow, goalinessHigh);
       finalistB = getWinningTeam("62");
       m_teams[finalistB].m_points = -1; // Disable to get runner up
-      m_groups["63"].push_back(getWinningTeam("62")); // Runner up
+      runnerUpB = getWinningTeam("62");
+      dropOutAtSemi.insert( m_teamToAbrieviation[runnerUpB] );
+      m_groups["63"].push_back(runnerUpB); // Runner up
       m_h_roundWinner["3"]->Fill( m_teams[finalistA].m_index + 0.5 ); 
       m_h_roundWinner["3"]->Fill( m_teams[finalistB].m_index + 0.5 );
     }
@@ -488,37 +532,186 @@ void WCMC::runFinal(const float goalinessLow, const float goalinessHigh) {
     m_groups["64"].push_back(finalistB);
     doGroup("63", goalinessLow, goalinessHigh);
     const std::string thirdPlace = getWinningTeam("63");
+    m_teams[thirdPlace].m_points = -1; // Disable to get 4th place
+    const std::string fourthPlace = getWinningTeam("63");
+    //
     doGroup("64", goalinessLow, goalinessHigh);
     const std::string winnerWinner = getWinningTeam("64");
+    m_teams[winnerWinner].m_points = -1; // Disable to get 2th place
+    const std::string secondPlace = getWinningTeam("64");
     m_h_roundWinner["4"]->Fill( m_teams[winnerWinner].m_index + 0.5 );
     if (m_matchPrint || trial % 10000 == 0) std::cout << "Trial:" << trial 
-      << " 3rd place:" << thirdPlace << ". Winners of SFs " <<  finalistA << " & " << finalistB 
+      << " 4th place:" << fourthPlace << " 3rd place:" << thirdPlace << ". Winners of SFs " <<  finalistA << " & " << finalistB 
       << ", WINNER WINNER:" << winnerWinner 
       << std::endl << " ----------------- " << std::endl;
+
+    std::stringstream ss;
+    ss << m_teamToAbrieviation[winnerWinner] << "/"
+      << m_teamToAbrieviation[secondPlace] << "/";
+    int i = 0;
+    for (const std::string& s : dropOutAtSemi) {
+      ss << s;
+      if (++i < 2) ss << "_";
+    }
+
+    outcomesToSemi[ ss.str() ]++;
+
+    ss << "/";
+    i = 0;
+    for (const std::string& s : dropOutAtQuarter) {
+      ss << s;
+      if (++i < 4) ss << "_";
+    }
+
+    outcomesToQuarter[ ss.str() ]++;
+
+    ss << "/";
+    i = 0;
+    for (const std::string& s : dropOutAt16) {
+      ss << s;
+      if (++i < 8) ss << "_";
+    }
+
+    outcomes[ ss.str() ]++;
+
+    if (firstEnglandWin && winnerWinner == "England") {
+      std::cout << std::endl << std::endl << "1st England win on trial " << trial << " " << ss.str() << std::endl << std::endl;
+      firstEnglandWin = false;
+    }
+
   }
+
   m_h_GoalsMC->Scale( 1./m_h_GoalsMC->Integral() );
   m_h_GoalDiffMC->Scale( 1./m_h_GoalDiffMC->Integral() );
+
+  std::cout << "Outcomes to semi size is " << outcomesToSemi.size() << std::endl;
+
+  // Find most current outcomes
+  int iterations = 0;
+  while (outcomesToSemi.size()) {
+    // Find
+    int highestScore = 0;
+    for (auto const& [key, val] : outcomesToSemi) {
+      if (val > highestScore) {
+        highestScore = val;
+      }
+    }
+    // Extract
+    std::vector<std::string> outcomesWithScore;
+    for (auto const& [key, val] : outcomesToSemi) {
+      if (val == highestScore) {
+        outcomesWithScore.push_back(key);
+      }
+    }
+    // Erase & report
+    bool doPrint = outcomesWithScore.size() <= 50;
+    if (!doPrint) std::cout << "Most common outcome (to semi) #" << ++iterations << ": with " << highestScore << " instances has " << outcomesWithScore.size() << " members" << std::endl;
+    for (const std::string& s : outcomesWithScore) {
+      outcomesToSemi.erase(s);
+      if (doPrint) std::cout << "Most common outcome (to semi) #" << ++iterations << ": with " << highestScore << " instances = " << s << std::endl;
+    }
+  }
+
+
+  std::cout << "Outcomes to quarter size is " << outcomesToQuarter.size() << std::endl;
+
+  // Find most current outcomes
+  iterations = 0;
+  while (outcomesToQuarter.size()) {
+    // Find
+    int highestScore = 0;
+    for (auto const& [key, val] : outcomesToQuarter) {
+      if (val > highestScore) {
+        highestScore = val;
+      }
+    }
+    // Extract
+    std::vector<std::string> outcomesWithScore;
+    for (auto const& [key, val] : outcomesToQuarter) {
+      if (val == highestScore) {
+        outcomesWithScore.push_back(key);
+      }
+    }
+    // Erase & report
+    bool doPrint = outcomesWithScore.size() <= 50;
+    if (!doPrint) std::cout << "Most common outcome (to semi) #" << ++iterations << ": with " << highestScore << " instances has " << outcomesWithScore.size() << " members" << std::endl;
+    for (const std::string& s : outcomesWithScore) {
+      outcomesToQuarter.erase(s);
+      if (doPrint) std::cout << "Most common outcome (to semi) #" << ++iterations << ": with " << highestScore << " instances = " << s << std::endl;
+    }
+  }
+
+  std::cout << "Outcomes size is " << outcomes.size() << std::endl;
+
+  // Find most current outcomes
+  iterations = 0;
+  while (outcomes.size()) {
+    // Find
+    int highestScore = 0;
+    for (auto const& [key, val] : outcomes) {
+      if (val > highestScore) {
+        highestScore = val;
+      }
+    }
+    // Extract
+    std::vector<std::string> outcomesWithScore;
+    for (auto const& [key, val] : outcomes) {
+      if (val == highestScore) {
+        outcomesWithScore.push_back(key);
+      }
+    }
+    // Erase & report
+    bool doPrint = outcomesWithScore.size() <= 50;
+    if (!doPrint) std::cout << "Most common outcome #" << ++iterations << ": with " << highestScore << " instances has " << outcomesWithScore.size() << " members" << std::endl;
+    for (const std::string& s : outcomesWithScore) {
+      outcomes.erase(s);
+      if (doPrint) std::cout << "Most common outcome #" << ++iterations << ": with " << highestScore << " instances = " << s << std::endl;
+    }
+  }
+
+
+
+
 }
 
 void WCMC::execute() {
   std::cout << "Execute with mode " << (int)m_mode << std::endl;
   float resultLowFine, resultHighFine;
+  
   const bool reTrain = false;
+
   if (reTrain == true && m_mode != kFULL_TOURNAMENT) {
     std::cout << "Error. Can only train when m_mode = kFULL_TOURNAMENT";
     return;
   }
+
   if (reTrain) {
     float resultLowCorse, resultHighCorse;
     runTraining(resultLowCorse, resultHighCorse, 0.1, 5.0, 5.0, 0.1, /*step*/0.1);
     runTraining(resultLowFine, resultHighFine, resultLowCorse - 0.5, resultLowCorse + 0.5, resultHighCorse + 0.5, resultHighCorse - 0.5, /*step*/0.01);
     std::cout << " ---->>>>> Tuned Low: "<< resultLowFine << " High: " << resultHighFine << "(Best chi2 G:" << m_bestChiG_Training << ", GD:" << m_bestChiGD_Training << ")" << std::endl;
+ 
+    nicePlot* npC = new nicePlot();
+    npC->setLogz(true);
+    npC->init("Goaliness Lower", "Goaliness Upper", "#chi^{2}/DoF");
+    npC->setRBounds(1.5, m_h_trainCorse->GetMaximum() * 1.01);
+    npC->add2D(m_h_trainCorse);
+
+    nicePlot* npF = new nicePlot();
+    npF->setLogz(false);
+    npF->init("Goaliness Lower", "Goaliness Upper", "#chi^{2}/DoF");
+    npF->setRBounds(2.45, 3.45);
+    npF->add2D(m_h_trainFine);
+
+    bookOutput::get().doBookOutput("WCMC_TuningGrid");
+    bookOutput::clear();
+
   } else {
     // 2022
     resultLowFine = 1.53;
     resultHighFine = 1.54;
     m_bestChiG_Training = 1.594;
-    m_bestChiGD_Training = 0.8897;
+    m_bestChiGD_Training = 0.8898;
 
     // 2018
     //resultLowFine = 1.52;

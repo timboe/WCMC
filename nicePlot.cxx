@@ -1041,16 +1041,24 @@ TCanvas* nicePlot::getCanvas(TPad* _toDrawInto) {
     if ( bin_label_x.size() > 0 ) setBinLabels( plot2D, "x");
     if ( bin_label_y.size() > 0 ) setBinLabels( plot2D, "y");
 
-    //gStyle->SetPalette(53); //53
-    // kCool
-    static bool doOnce = true;
-    if (doOnce == true) {
-      doOnce = false;
-      Double_t stops[9] = { 0.0000, 0.1250, 0.2500, 0.3750, 0.5000, 0.6250, 0.7500, 0.8750, 1.0000};
-      Double_t red[9]   = { 0/255., 51./255.,  43./255.,  33./255.,  28./255.,  35./255.,  74./255., 144./255., 246./255.};
-      Double_t green[9] = { 0/255., 24./255.,  55./255.,  87./255., 118./255., 150./255., 180./255., 200./255., 222./255.};
-      Double_t blue[9]  = { 0/255., 96./255., 112./255., 114./255., 112./255., 101./255.,  72./255.,  35./255.,   0./255.};
-      TColor::CreateGradientColorTable(9, stops, red, green, blue, 255);
+
+    if (xTitle == "Goaliness Lower") {
+
+      gStyle->SetPalette(53); //53
+      gStyle->SetNumberContours(256);
+
+    } else {
+
+      // kCool
+      static bool doOnce = true;
+      if (doOnce == true) {
+        doOnce = false;
+        Double_t stops[9] = { 0.0000, 0.1250, 0.2500, 0.3750, 0.5000, 0.6250, 0.7500, 0.8750, 1.0000};
+        Double_t red[9]   = { 0/255., 51./255.,  43./255.,  33./255.,  28./255.,  35./255.,  74./255., 144./255., 246./255.};
+        Double_t green[9] = { 0/255., 24./255.,  55./255.,  87./255., 118./255., 150./255., 180./255., 200./255., 222./255.};
+        Double_t blue[9]  = { 0/255., 96./255., 112./255., 114./255., 112./255., 101./255.,  72./255.,  35./255.,   0./255.};
+        TColor::CreateGradientColorTable(9, stops, red, green, blue, 255);
+      }
     }
     //
     plot2D->Draw("colz");
