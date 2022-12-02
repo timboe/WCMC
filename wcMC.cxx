@@ -584,10 +584,13 @@ void WCMC::runFinal(const float goalinessLow, const float goalinessHigh) {
   m_h_GoalsMC->Scale( 1./m_h_GoalsMC->Integral() );
   m_h_GoalDiffMC->Scale( 1./m_h_GoalDiffMC->Integral() );
 
+  if (m_mode == kAFTER_QUARTER) return;
+
   std::cout << "Outcomes to semi size is " << outcomesToSemi.size() << std::endl;
 
   // Find most current outcomes
   int iterations = 0;
+  int print = 0;
   while (outcomesToSemi.size()) {
     // Find
     int highestScore = 0;
@@ -604,19 +607,21 @@ void WCMC::runFinal(const float goalinessLow, const float goalinessHigh) {
       }
     }
     // Erase & report
-    bool doPrint = outcomesWithScore.size() <= 50;
-    if (!doPrint) std::cout << "Most common outcome (to semi) #" << ++iterations << ": with " << highestScore << " instances has " << outcomesWithScore.size() << " members" << std::endl;
+    bool doPrint = outcomesWithScore.size() <= 20 && ++print < 20;
+    if (!doPrint && outcomesWithScore.size() > 1) std::cout << "Most common outcome (to semi) #" << ++iterations << ": with " << highestScore << " instances has " << outcomesWithScore.size() << " members" << std::endl;
     for (const std::string& s : outcomesWithScore) {
       outcomesToSemi.erase(s);
       if (doPrint) std::cout << "Most common outcome (to semi) #" << ++iterations << ": with " << highestScore << " instances = " << s << std::endl;
     }
   }
 
+  if (m_mode == kAFTER_16) return;
 
   std::cout << "Outcomes to quarter size is " << outcomesToQuarter.size() << std::endl;
 
   // Find most current outcomes
   iterations = 0;
+  print = 0;
   while (outcomesToQuarter.size()) {
     // Find
     int highestScore = 0;
@@ -633,18 +638,21 @@ void WCMC::runFinal(const float goalinessLow, const float goalinessHigh) {
       }
     }
     // Erase & report
-    bool doPrint = outcomesWithScore.size() <= 50;
-    if (!doPrint) std::cout << "Most common outcome (to semi) #" << ++iterations << ": with " << highestScore << " instances has " << outcomesWithScore.size() << " members" << std::endl;
+    bool doPrint = outcomesWithScore.size() <= 20 && ++print < 20;
+    if (!doPrint && outcomesWithScore.size() > 1) std::cout << "Most common outcome (to quarter) #" << ++iterations << ": with " << highestScore << " instances has " << outcomesWithScore.size() << " members" << std::endl;
     for (const std::string& s : outcomesWithScore) {
       outcomesToQuarter.erase(s);
-      if (doPrint) std::cout << "Most common outcome (to semi) #" << ++iterations << ": with " << highestScore << " instances = " << s << std::endl;
+      if (doPrint) std::cout << "Most common outcome (to quarter) #" << ++iterations << ": with " << highestScore << " instances = " << s << std::endl;
     }
   }
+
+  if (m_mode == kAFTER_GROUP) return;
 
   std::cout << "Outcomes size is " << outcomes.size() << std::endl;
 
   // Find most current outcomes
   iterations = 0;
+  print = 0;
   while (outcomes.size()) {
     // Find
     int highestScore = 0;
@@ -661,8 +669,8 @@ void WCMC::runFinal(const float goalinessLow, const float goalinessHigh) {
       }
     }
     // Erase & report
-    bool doPrint = outcomesWithScore.size() <= 50;
-    if (!doPrint) std::cout << "Most common outcome #" << ++iterations << ": with " << highestScore << " instances has " << outcomesWithScore.size() << " members" << std::endl;
+    bool doPrint = outcomesWithScore.size() <= 20 && ++print < 20;
+    if (!doPrint && outcomesWithScore.size() > 1) std::cout << "Most common outcome #" << ++iterations << ": with " << highestScore << " instances has " << outcomesWithScore.size() << " members" << std::endl;
     for (const std::string& s : outcomesWithScore) {
       outcomes.erase(s);
       if (doPrint) std::cout << "Most common outcome #" << ++iterations << ": with " << highestScore << " instances = " << s << std::endl;
@@ -882,8 +890,8 @@ int main() {
   gROOT->ProcessLine(".L AtlasStyle.C");
   gROOT->ProcessLine("SetAtlasStyle();");
   gErrorIgnoreLevel = 10000;
-  WCMC wc2022_a(kFULL_TOURNAMENT);
-  //WCMC wc2018_b(kAFTER_GROUP);
+  //WCMC wc2022_a(kFULL_TOURNAMENT);
+  WCMC wc2018_b(kAFTER_GROUP);
   //WCMC wc2018_c(kAFTER_16);
   //WCMC wc2018_d(kAFTER_QUARTER);
   //WCMC wc2018_e(kAFTER_SEMI);
