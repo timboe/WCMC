@@ -891,9 +891,9 @@ int main() {
   gROOT->ProcessLine("SetAtlasStyle();");
   gErrorIgnoreLevel = 10000;
   //WCMC wc2022_a(kFULL_TOURNAMENT);
-  WCMC wc2018_b(kAFTER_GROUP);
+  //WCMC wc2018_b(kAFTER_GROUP);
   //WCMC wc2018_c(kAFTER_16);
-  //WCMC wc2018_d(kAFTER_QUARTER);
+  WCMC wc2018_d(kAFTER_QUARTER);
   //WCMC wc2018_e(kAFTER_SEMI);
 }
 
